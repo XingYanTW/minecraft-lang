@@ -35,15 +35,15 @@ jobs:
 
           echo "assets_url=$ASSETS_INDEX" >> $GITHUB_OUTPUT
 
-      - name: Download language file (en_us.json)
+      - name: Download language file (zh_tw.json)
         run: |
           ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
-          HASH=$(echo "$ASSET_DATA" | jq -r '.objects["minecraft/lang/en_us.json"].hash')
+          HASH=$(echo "$ASSET_DATA" | jq -r '.objects["minecraft/lang/zh_tw.json"].hash')
           LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
 
-          curl -o en_us.json "$LANG_URL"
-          echo "Downloaded language file as en_us.json"
+          curl -o zh_tw.json "$LANG_URL"
+          echo "Downloaded language file as zh_tw.json"
           
       - name: Commit lang file
         run: |
@@ -52,7 +52,7 @@ jobs:
 
           git pull --rebase origin main
 
-          git add en_us.json
+          git add zh_tw.json
           git commit -m "Update Minecraft lang file (latest)" || echo "No changes"
           git push origin HEAD:main
 
