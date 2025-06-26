@@ -1,0 +1,54 @@
+name: Fetch Minecraft Lang
+
+on:
+  workflow_dispatch:  # Manual trigger
+  schedule:
+    - cron: '0 6 * * *'  # Daily at 6 AM UTC
+
+jobs:
+  fetch-lang:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install jq & curl
+        run: sudo apt-get update && sudo apt-get install -y jq curl
+
+      - name: Fetch latest Minecraft version
+        id: get_version
+        run: |
+          VERSION_JSON=$(curl -s https://piston-meta.mojang.com/mc/game/version_manifest_v2.json)
+          LATEST_VERSION=$(echo "$VERSION_JSON" | jq -r '.latest.release')
+          VERSION_URL=$(echo "$VERSION_JSON" | jq -r --arg VER "$LATEST_VERSION" '.versions[] | select(.id == $VER) | .url')
+
+          echo "Latest version: $LATEST_VERSION"
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+          echo "version_url=$VERSION_URL" >> $GITHUB_OUTPUT
+
+      - name: Get assets hash for latest version
+        id: get_assets
+        run: |
+          VERSION_URL=${{ steps.get_version.outputs.version_url }}
+          VERSION_DATA=$(curl -s "$VERSION_URL")
+          ASSETS_INDEX=$(echo "$VERSION_DATA" | jq -r '.assetIndex.url')
+
+          echo "assets_url=$ASSETS_INDEX" >> $GITHUB_OUTPUT
+
+      - name: Download language file (en_us.json)
+        run: |
+          ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
+          ASSET_DATA=$(curl -s "$ASSETS_URL")
+          HASH=$(echo "$ASSET_DATA" | jq -r '.objects["minecraft/lang/en_us.json"].hash')
+          LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
+
+          curl -o en_us.json "$LANG_URL"
+          echo "Downloaded language file as en_us.json"
+
+      - name: Commit lang file
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add en_us.json
+          git commit -m "Update Minecraft lang file (latest)"
+          git push
