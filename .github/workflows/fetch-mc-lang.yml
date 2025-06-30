@@ -74,9 +74,7 @@ jobs:
           git add *.json
           git commit -m "Update Minecraft lang files (latest ${{ steps.get_version.outputs.version }})" || echo "No changes"
           git push origin HEAD:main
-
----
-
+          
   fetch-snapshot:
     runs-on: ubuntu-latest
     steps:
@@ -125,16 +123,16 @@ jobs:
             echo "Downloading $FILE_NAME..."
             curl -s -o "$FILE_NAME" "$LANG_URL"
           done
-
-      - name: Download client.jar and extract en_us.json for snapshot
+          
+- name: Download client.jar and extract en_us.json
         run: |
-          CLIENT_JAR_URL=${{ steps.snapshot_version.outputs.client_jar_url }}
+          CLIENT_JAR_URL=${{ steps.get_version.outputs.client_jar_url }}
           echo "Downloading client.jar from $CLIENT_JAR_URL..."
           curl -s -o client.jar "$CLIENT_JAR_URL"
 
           echo "Extracting en_us.json from client.jar..."
-          # Using -j to junk paths, so en_us.json is extracted directly to current directory
-          unzip -j client.jar assets/minecraft/lang/en_us.json -d .
+          # Using -o to overwrite existing files without prompting, and -j to junk paths
+          unzip -o -j client.jar assets/minecraft/lang/en_us.json -d .
           rm client.jar # Clean up the downloaded jar file
 
       - name: Commit snapshot lang files
