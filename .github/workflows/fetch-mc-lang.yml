@@ -12,8 +12,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install jq & curl
-        run: sudo apt-get update && sudo apt-get install -y jq curl
+      - name: Install jq, curl & unzip
+        run: sudo apt-get update && sudo apt-get install -y jq curl unzip
 
       - name: Fetch latest Minecraft version
         id: get_version
@@ -21,9 +21,14 @@ jobs:
           VERSION_JSON=$(curl -s https://piston-meta.mojang.com/mc/game/version_manifest_v2.json)
           LATEST_VERSION=$(echo "$VERSION_JSON" | jq -r '.latest.release')
           VERSION_URL=$(echo "$VERSION_JSON" | jq -r --arg VER "$LATEST_VERSION" '.versions[] | select(.id == $VER) | .url')
+          
+          # Download version details JSON to get client.jar URL
+          VERSION_DATA=$(curl -s "$VERSION_URL")
+          CLIENT_JAR_URL=$(echo "$VERSION_DATA" | jq -r '.downloads.client.url')
 
           echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "version_url=$VERSION_URL" >> $GITHUB_OUTPUT
+          echo "client_jar_url=$CLIENT_JAR_URL" >> $GITHUB_OUTPUT
 
       - name: Get assets hash for latest version
         id: get_assets
@@ -34,20 +39,30 @@ jobs:
 
           echo "assets_url=$ASSETS_INDEX" >> $GITHUB_OUTPUT
 
-      - name: Download all language files to root
+      - name: Download all language files from asset index to root
         run: |
           ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
-          # The jq filter 'select(.key | startswith("minecraft/lang/") and endswith(".json"))'
-          # correctly selects only language files found in the asset index.
-          # Since en_us.json is not in the asset index, it will automatically be skipped.
+          # This jq filter correctly selects only language files found in the asset index.
+          # As en_us.json is not in the asset index, it will automatically be skipped without explicit exclusion.
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
             echo "Downloading $FILE_NAME..."
             curl -s -o "$FILE_NAME" "$LANG_URL"
           done
+          
+      - name: Download client.jar and extract en_us.json
+        run: |
+          CLIENT_JAR_URL=${{ steps.get_version.outputs.client_jar_url }}
+          echo "Downloading client.jar from $CLIENT_JAR_URL..."
+          curl -s -o client.jar "$CLIENT_JAR_URL"
+
+          echo "Extracting en_us.json from client.jar..."
+          # Using -j to junk paths, so en_us.json is extracted directly to current directory
+          unzip -j client.jar assets/minecraft/lang/en_us.json -d .
+          rm client.jar # Clean up the downloaded jar file
 
       - name: Commit lang files
         run: |
@@ -68,8 +83,8 @@ jobs:
         with:
           ref: snapshot
 
-      - name: Install jq & curl
-        run: sudo apt-get update && sudo apt-get install -y jq curl
+      - name: Install jq, curl & unzip
+        run: sudo apt-get update && sudo apt-get install -y jq curl unzip
 
       - name: Fetch latest snapshot version
         id: snapshot_version
@@ -78,8 +93,13 @@ jobs:
           LATEST_SNAPSHOT=$(echo "$JSON" | jq -r '.latest.snapshot')
           VERSION_URL=$(echo "$JSON" | jq -r --arg VER "$LATEST_SNAPSHOT" '.versions[] | select(.id == $VER) | .url')
 
+          # Download version details JSON to get client.jar URL for snapshot
+          VERSION_DATA=$(curl -s "$VERSION_URL")
+          CLIENT_JAR_URL=$(echo "$VERSION_DATA" | jq -r '.downloads.client.url')
+
           echo "version=$LATEST_SNAPSHOT" >> $GITHUB_OUTPUT
           echo "version_url=$VERSION_URL" >> $GITHUB_OUTPUT
+          echo "client_jar_url=$CLIENT_JAR_URL" >> $GITHUB_OUTPUT
 
       - name: Get snapshot asset index
         id: snapshot_assets
@@ -90,20 +110,30 @@ jobs:
 
           echo "assets_url=$ASSETS_URL" >> $GITHUB_OUTPUT
 
-      - name: Download all language files to root
+      - name: Download all language files from asset index to root
         run: |
           ASSETS_URL=${{ steps.snapshot_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
-          # The jq filter 'select(.key | startswith("minecraft/lang/") and endswith(".json"))'
-          # correctly selects only language files found in the asset index.
-          # Since en_us.json is not in the asset index, it will automatically be skipped.
+          # This jq filter correctly selects only language files found in the asset index.
+          # As en_us.json is not in the asset index, it will automatically be skipped without explicit exclusion.
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
             echo "Downloading $FILE_NAME..."
             curl -s -o "$FILE_NAME" "$LANG_URL"
           done
+
+      - name: Download client.jar and extract en_us.json for snapshot
+        run: |
+          CLIENT_JAR_URL=${{ steps.snapshot_version.outputs.client_jar_url }}
+          echo "Downloading client.jar from $CLIENT_JAR_URL..."
+          curl -s -o client.jar "$CLIENT_JAR_URL"
+
+          echo "Extracting en_us.json from client.jar..."
+          # Using -j to junk paths, so en_us.json is extracted directly to current directory
+          unzip -j client.jar assets/minecraft/lang/en_us.json -d .
+          rm client.jar # Clean up the downloaded jar file
 
       - name: Commit snapshot lang files
         run: |
