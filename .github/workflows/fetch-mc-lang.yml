@@ -61,7 +61,7 @@ jobs:
 
           echo "Extracting en_us.json from client.jar..."
           # Using -j to junk paths, so en_us.json is extracted directly to current directory
-          unzip -j client.jar assets/minecraft/lang/en_us.json -d .
+          unzip -o -j client.jar assets/minecraft/lang/en_us.json -d .
           rm client.jar # Clean up the downloaded jar file
 
       - name: Commit lang files
@@ -132,7 +132,7 @@ jobs:
 
           echo "Extracting en_us.json from client.jar..."
           # Using -j to junk paths, so en_us.json is extracted directly to current directory
-          unzip -j client.jar assets/minecraft/lang/en_us.json -d .
+          unzip -o -j client.jar assets/minecraft/lang/en_us.json -d .
           rm client.jar # Clean up the downloaded jar file
 
       - name: Commit snapshot lang files
