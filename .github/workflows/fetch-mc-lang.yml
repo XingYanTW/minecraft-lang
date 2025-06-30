@@ -35,26 +35,30 @@ jobs:
 
           echo "assets_url=$ASSETS_INDEX" >> $GITHUB_OUTPUT
 
-      - name: Download language file (zh_tw.json)
+      - name: Download all language files
         run: |
           ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
-          HASH=$(echo "$ASSET_DATA" | jq -r '.objects["minecraft/lang/zh_tw.json"].hash')
-          LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
 
-          curl -o zh_tw.json "$LANG_URL"
-          echo "Downloaded language file as zh_tw.json"
+          mkdir -p lang
+          echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
+            FILE_NAME=$(basename "$KEY")
+            LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
+            echo "Downloading $FILE_NAME..."
+            curl -s -o "lang/$FILE_NAME" "$LANG_URL"
+          done
           
-      - name: Commit lang file
+      - name: Commit lang files
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
           git pull --rebase origin main
 
-          git add zh_tw.json
-          git commit -m "Update Minecraft lang file (latest)" || echo "No changes"
+          git add lang/
+          git commit -m "Update all Minecraft lang files (latest)" || echo "No changes"
           git push origin HEAD:main
+
   fetch-snapshot:
     runs-on: ubuntu-latest
     steps:
@@ -81,22 +85,30 @@ jobs:
           ASSETS_URL=$(echo "$DATA" | jq -r '.assetIndex.url')
           echo "assets_url=$ASSETS_URL" >> $GITHUB_OUTPUT
 
-      - name: Download snapshot lang file
+      - name: Download all snapshot language files
         run: |
-          ASSETS_URL=${{ steps.snapshot_assets.outputs.assets_url }}
-          ASSET_JSON=$(curl -s "$ASSETS_URL")
-          HASH=$(echo "$ASSET_JSON" | jq -r '.objects["minecraft/lang/zh_tw.json"].hash')
-          LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
-          curl -o zh_tw.json "$LANG_URL"
+          ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
+          ASSET_DATA=$(curl -s "$ASSETS_URL")
 
-      - name: Commit snapshot lang file
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+          mkdir -p lang
+          echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
+            FILE_NAME=$(basename "$KEY")
+            LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
+            echo "Downloading $FILE_NAME..."
+            curl -s -o "lang/$FILE_NAME" "$LANG_URL"
+          done
+
+
+      - name: Commit lang files
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add zh_tw.json
-          git commit -m "Update Minecraft lang file (snapshot ${{ steps.snapshot_version.outputs.version }})" || echo "No changes"
-          git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:snapshot
+
+          git pull --rebase origin snapshot
+
+          git add lang/
+          git commit -m "Update all Minecraft lang files (latest)" || echo "No changes"
+          git push origin HEAD:snapshot
+
 
 
