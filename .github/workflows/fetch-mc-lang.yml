@@ -34,16 +34,17 @@ jobs:
 
           echo "assets_url=$ASSETS_INDEX" >> $GITHUB_OUTPUT
 
-      - name: Download all language files to root
+      - name: Download all language files to lang/
         run: |
+          mkdir -p lang # Create the directory if it doesn't exist
           ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
-            echo "Downloading $FILE_NAME..."
-            curl -s -o "$FILE_NAME" "$LANG_URL"
+            echo "Downloading $FILE_NAME to lang/..."
+            curl -s -o "lang/$FILE_NAME" "$LANG_URL"
           done
 
       - name: Commit lang files
@@ -51,10 +52,12 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git pull --rebase origin main || true
+          # Removed || true to allow the step to fail if rebase encounters issues
+          git pull --rebase origin main 
 
-          git add *.json
-          git commit -m "Update all Minecraft lang files (latest)" || echo "No changes"
+          git add lang/*.json
+          # Added version to commit message
+          git commit -m "Update Minecraft lang files (latest ${{ steps.get_version.outputs.version }})" || echo "No changes"
           git push origin HEAD:main
 
   fetch-snapshot:
@@ -87,27 +90,30 @@ jobs:
 
           echo "assets_url=$ASSETS_URL" >> $GITHUB_OUTPUT
 
-      - name: Download all language files to root
+      - name: Download all language files to lang/
         run: |
+          mkdir -p lang # Create the directory if it doesn't exist
           ASSETS_URL=${{ steps.snapshot_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
-            echo "Downloading $FILE_NAME..."
-            curl -s -o "$FILE_NAME" "$LANG_URL"
+            echo "Downloading $FILE_NAME to lang/..."
+            curl -s -o "lang/$FILE_NAME" "$LANG_URL"
           done
 
       - name: Commit snapshot lang files
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
+        # Removed env: GH_PAT, trying to use GITHUB_TOKEN
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git pull --rebase origin snapshot || true
+          # Removed || true to allow the step to fail if rebase encounters issues
+          git pull --rebase origin snapshot
 
-          git add *.json
-          git commit -m "Update all Minecraft lang files (snapshot ${{ steps.snapshot_version.outputs.version }})" || echo "No changes"
-          git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:snapshot
+          git add lang/*.json
+          # Added version to commit message
+          git commit -m "Update Minecraft lang files (snapshot ${{ steps.snapshot_version.outputs.version }})" || echo "No changes"
+          # Changed push URL to try GITHUB_TOKEN. If it fails, you might need to revert to GH_PAT
+          git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:snapshot
