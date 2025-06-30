@@ -45,7 +45,7 @@ jobs:
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
           # This jq filter correctly selects only language files found in the asset index.
-          # As en_us.json is not in the asset index, it will automatically be skipped without explicit exclusion.
+          # As en_us.json is not in the asset index, it will automatically be skipped.
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
@@ -60,7 +60,7 @@ jobs:
           curl -s -o client.jar "$CLIENT_JAR_URL"
 
           echo "Extracting en_us.json from client.jar..."
-          # Using -j to junk paths, so en_us.json is extracted directly to current directory
+          # Using -o to overwrite existing files, and -j to junk paths, so en_us.json is extracted directly to current directory
           unzip -o -j client.jar assets/minecraft/lang/en_us.json -d .
           rm client.jar # Clean up the downloaded jar file
 
@@ -69,11 +69,21 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
+          # Stash any local changes including untracked files before pulling.
+          # `|| true` prevents the step from failing if there's nothing to stash.
+          git stash push --include-untracked -m "WIP: Stash local changes before pull" || true
+
           git pull --rebase origin main 
+
+          # Apply stashed changes back.
+          # `|| true` prevents the step from failing if there's nothing to pop.
+          git stash pop || true
 
           git add *.json
           git commit -m "Update Minecraft lang files (latest ${{ steps.get_version.outputs.version }})" || echo "No changes"
           git push origin HEAD:main
+
+---
 
   fetch-snapshot:
     runs-on: ubuntu-latest
@@ -116,7 +126,7 @@ jobs:
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
           # This jq filter correctly selects only language files found in the asset index.
-          # As en_us.json is not in the asset index, it will automatically be skipped without explicit exclusion.
+          # As en_us.json is not in the asset index, it will automatically be skipped.
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
@@ -131,7 +141,7 @@ jobs:
           curl -s -o client.jar "$CLIENT_JAR_URL"
 
           echo "Extracting en_us.json from client.jar..."
-          # Using -j to junk paths, so en_us.json is extracted directly to current directory
+          # Using -o to overwrite existing files, and -j to junk paths, so en_us.json is extracted directly to current directory
           unzip -o -j client.jar assets/minecraft/lang/en_us.json -d .
           rm client.jar # Clean up the downloaded jar file
 
@@ -140,7 +150,15 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
+          # Stash any local changes including untracked files before pulling.
+          # `|| true` prevents the step from failing if there's nothing to stash.
+          git stash push --include-untracked -m "WIP: Stash local changes before pull" || true
+
           git pull --rebase origin snapshot
+
+          # Apply stashed changes back.
+          # `|| true` prevents the step from failing if there's nothing to pop.
+          git stash pop || true
 
           git add *.json
           git commit -m "Update Minecraft lang files (snapshot ${{ steps.snapshot_version.outputs.version }})" || echo "No changes"
