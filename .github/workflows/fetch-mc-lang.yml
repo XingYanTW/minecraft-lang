@@ -82,9 +82,6 @@ jobs:
           git add *.json
           git commit -m "Update Minecraft lang files (latest ${{ steps.get_version.outputs.version }})" || echo "No changes"
           git push origin HEAD:main
-
----
-
   fetch-snapshot:
     runs-on: ubuntu-latest
     steps:
