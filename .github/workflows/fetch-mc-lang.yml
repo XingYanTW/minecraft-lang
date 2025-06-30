@@ -22,7 +22,6 @@ jobs:
           LATEST_VERSION=$(echo "$VERSION_JSON" | jq -r '.latest.release')
           VERSION_URL=$(echo "$VERSION_JSON" | jq -r --arg VER "$LATEST_VERSION" '.versions[] | select(.id == $VER) | .url')
 
-          echo "Latest version: $LATEST_VERSION"
           echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
           echo "version_url=$VERSION_URL" >> $GITHUB_OUTPUT
 
@@ -35,38 +34,38 @@ jobs:
 
           echo "assets_url=$ASSETS_INDEX" >> $GITHUB_OUTPUT
 
-      - name: Download all language files
+      - name: Download all language files to root
         run: |
           ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
-          mkdir -p lang
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
             echo "Downloading $FILE_NAME..."
-            curl -s -o "lang/$FILE_NAME" "$LANG_URL"
+            curl -s -o "$FILE_NAME" "$LANG_URL"
           done
-          
+
       - name: Commit lang files
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git pull --rebase origin main
+          git pull --rebase origin main || true
 
-          git add lang/
+          git add *.json
           git commit -m "Update all Minecraft lang files (latest)" || echo "No changes"
           git push origin HEAD:main
 
   fetch-snapshot:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - name: Checkout snapshot branch
+        uses: actions/checkout@v3
         with:
           ref: snapshot
 
-      - name: Setup tools
+      - name: Install jq & curl
         run: sudo apt-get update && sudo apt-get install -y jq curl
 
       - name: Fetch latest snapshot version
@@ -75,40 +74,40 @@ jobs:
           JSON=$(curl -s https://piston-meta.mojang.com/mc/game/version_manifest_v2.json)
           LATEST_SNAPSHOT=$(echo "$JSON" | jq -r '.latest.snapshot')
           VERSION_URL=$(echo "$JSON" | jq -r --arg VER "$LATEST_SNAPSHOT" '.versions[] | select(.id == $VER) | .url')
+
           echo "version=$LATEST_SNAPSHOT" >> $GITHUB_OUTPUT
           echo "version_url=$VERSION_URL" >> $GITHUB_OUTPUT
 
-      - name: Get snapshot asset index url
+      - name: Get snapshot asset index
         id: snapshot_assets
         run: |
-          DATA=$(curl -s "${{ steps.snapshot_version.outputs.version_url }}")
-          ASSETS_URL=$(echo "$DATA" | jq -r '.assetIndex.url')
+          VERSION_URL=${{ steps.snapshot_version.outputs.version_url }}
+          VERSION_DATA=$(curl -s "$VERSION_URL")
+          ASSETS_URL=$(echo "$VERSION_DATA" | jq -r '.assetIndex.url')
+
           echo "assets_url=$ASSETS_URL" >> $GITHUB_OUTPUT
 
-      - name: Download all snapshot language files
+      - name: Download all language files to root
         run: |
-          ASSETS_URL=${{ steps.get_assets.outputs.assets_url }}
+          ASSETS_URL=${{ steps.snapshot_assets.outputs.assets_url }}
           ASSET_DATA=$(curl -s "$ASSETS_URL")
 
-          mkdir -p lang
           echo "$ASSET_DATA" | jq -r '.objects | to_entries[] | select(.key | startswith("minecraft/lang/") and endswith(".json")) | "\(.key) \(.value.hash)"' | while read -r KEY HASH; do
             FILE_NAME=$(basename "$KEY")
             LANG_URL="https://resources.download.minecraft.net/${HASH:0:2}/$HASH"
             echo "Downloading $FILE_NAME..."
-            curl -s -o "lang/$FILE_NAME" "$LANG_URL"
+            curl -s -o "$FILE_NAME" "$LANG_URL"
           done
 
-
-      - name: Commit lang files
+      - name: Commit snapshot lang files
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-          git pull --rebase origin snapshot
+          git pull --rebase origin snapshot || true
 
-          git add lang/
-          git commit -m "Update all Minecraft lang files (latest)" || echo "No changes"
-          git push origin HEAD:snapshot
-
-
-
+          git add *.json
+          git commit -m "Update all Minecraft lang files (snapshot ${{ steps.snapshot_version.outputs.version }})" || echo "No changes"
+          git push https://x-access-token:${GH_PAT}@github.com/${{ github.repository }}.git HEAD:snapshot
