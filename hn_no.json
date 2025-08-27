@@ -2790,7 +2790,7 @@
     "commands.playsound.success.single": "Spelade ljodet %s til %s",
     "commands.profile_fetch.copy_component": "Copy Component",
     "commands.profile_fetch.failed_to_serialize": "Failed to serialize profile: %s",
-    "commands.profile_fetch.give_item": "Give Item",
+    "commands.profile_fetch.give_item": "Gjev ting",
     "commands.profile_fetch.id.failure": "Failed to resolved profile for id %s",
     "commands.profile_fetch.id.success": "Resolved profile for id %s: %s",
     "commands.profile_fetch.name.failure": "Failed to resolve profile for name %s",
